@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Activity, Globe2, Loader2, TerminalSquare } from "lucide-react";
 import { toast } from "sonner";
 
-export default function ProxyTools({ active }) {
+export default function ProxyTools({ active, gateway }) {
   const [url, setUrl] = useState("https://api.ipify.org?format=json");
   const [lines, setLines] = useState([{ t: "info", m: "$ gateway siap. pilih proxy lalu jalankan test / fetch." }]);
   const [testing, setTesting] = useState(false);
@@ -62,7 +62,7 @@ export default function ProxyTools({ active }) {
   return (
     <div className="card-panel h-full flex flex-col" data-testid="proxy-tools">
       <div className="p-5 pb-3 border-b border-line">
-        <span className="overline">Step 2 · Proxy Server :8080</span>
+        <span className="overline">Step 2 · Proxy Server :{gateway?.port || "8080"}</span>
         <h3 className="font-heading text-lg tracking-tight">Test & Fetch</h3>
       </div>
 

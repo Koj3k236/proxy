@@ -17,6 +17,20 @@ export default function Dashboard() {
   const [active, setActive] = useState(null);
   const [history, setHistory] = useState([]);
   const [balance, setBalance] = useState(null);
+  const [gateway, setGateway] = useState(null);
+
+  const loadGateway = useCallback(async () => {
+    try {
+      const { data } = await api.get("/gateway/status");
+      setGateway(data);
+    } catch (e) {}
+  }, []);
+
+  useEffect(() => {
+    loadGateway();
+    const t = setInterval(loadGateway, 5000);
+    return () => clearInterval(t);
+  }, [loadGateway]);
 
   const loadSettings = useCallback(async () => {
     try {
@@ -100,7 +114,7 @@ export default function Dashboard() {
               <ActiveProxyCard active={active} />
             </div>
             <div className="lg:col-span-8">
-              <ArchitectureFlow active={active} />
+              <ArchitectureFlow active={active} gateway={gateway} />
             </div>
           </div>
 
@@ -110,10 +124,10 @@ export default function Dashboard() {
           {/* Row 3: tools + usage guide */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             <div className="lg:col-span-4">
-              <ProxyTools active={active} />
+              <ProxyTools active={active} gateway={gateway} />
             </div>
             <div className="lg:col-span-8">
-              <UsageGuide active={active} />
+              <UsageGuide active={active} gateway={gateway} />
             </div>
           </div>
 

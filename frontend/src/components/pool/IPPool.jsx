@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { RegionNav, ChipRow } from "@/components/pool/RegionNav";
 import PoolTable from "@/components/pool/PoolTable";
 import ScanDialog from "@/components/pool/ScanDialog";
+import BulkScan from "@/components/pool/BulkScan";
 
 export default function IPPool({ active, onActivated }) {
   const [rows, setRows] = useState([]);
@@ -92,7 +93,7 @@ export default function IPPool({ active, onActivated }) {
           <span className="overline">Step 1 · Ambil & Filter</span>
           <h3 className="font-heading text-lg tracking-tight">IP Pool FloppyData</h3>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap justify-end flex-1">
           <span className="font-mono text-xs text-dim" data-testid="pool-count">{rows.length} IP</span>
           {rows.length > 0 && (
             <Button onClick={clearPool} variant="outline" size="sm" className="rounded-none border-line hover:border-signal hover:text-signal font-mono text-xs h-8" data-testid="pool-clear-btn">
@@ -102,6 +103,7 @@ export default function IPPool({ active, onActivated }) {
           <Button onClick={() => setScanOpen(true)} size="sm" className="rounded-none bg-neon text-black hover:bg-neon/85 font-mono text-xs h-8" data-testid="pool-scan-btn">
             <Radar size={13} /> Scan IP
           </Button>
+          <BulkScan onProgress={load} />
         </div>
       </div>
 

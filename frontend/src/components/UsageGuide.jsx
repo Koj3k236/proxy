@@ -4,12 +4,22 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { BookOpen, Copy, Check } from "lucide-react";
 
-function buildSnippets(p) {
+function buildSnippets(p, gw) {
   const proto = (p.protocol || "http").toLowerCase();
   const socks = proto === "socks5";
   const scheme = socks ? "socks5h" : proto;
   const { host, port, username: u, password: pw } = p;
+  const gwHost = window.location.hostname;
+  const gwPort = gw?.port || "8888";
   return [
+    {
+      id: "gateway",
+      label: `Gateway :${gwPort}`,
+      note: gw?.running
+        ? `Proxy server kamu sendiri — tanpa username/password. Isi di browser/OS: HTTP proxy ${gwHost}:${gwPort}. Semua traffic otomatis keluar lewat IP aktif (${p.exit_ip}). Port bisa diganti di Settings. Hanya bisa diakses saat app berjalan di komputer/VPS kamu sendiri.`
+        : `Gateway belum berjalan${gw?.error ? `: ${gw.error}` : ""}. Ganti port di Settings.`,
+      code: `Proxy Address : ${gwHost}\nPort          : ${gwPort}\nAuth          : (tidak perlu)\n\ncurl -x http://${gwHost}:${gwPort} https://api.ipify.org`,
+    },
     {
       id: "curl",
       label: "curl",
@@ -80,7 +90,7 @@ function CopyBtn({ text, id }) {
   );
 }
 
-export default function UsageGuide({ active }) {
+export default function UsageGuide({ active, gateway }) {
   if (!active) {
     return (
       <div className="card-panel p-5 flex items-center gap-3" data-testid="usage-guide-empty">
@@ -93,7 +103,7 @@ export default function UsageGuide({ active }) {
     );
   }
 
-  const snippets = buildSnippets(active);
+  const snippets = buildSnippets(active, gateway);
   const proto = (active.protocol || "http").toUpperCase();
 
   return (
@@ -103,12 +113,19 @@ export default function UsageGuide({ active }) {
           <span className="overline">Step 3 · Gunakan di aplikasi lain</span>
           <h3 className="font-heading text-lg tracking-tight">Cara Pakai · {proto}</h3>
         </div>
-        <span className="font-mono text-xs text-dim border border-line px-2 py-1" data-testid="usage-guide-endpoint">
-          {active.host}:{active.port}
-        </span>
+        <div className="flex items-center gap-2">
+          {gateway && (
+            <span className={`font-mono text-xs border px-2 py-1 ${gateway.running ? "border-laser/40 text-laser" : "border-signal/40 text-signal"}`} data-testid="gateway-status-chip">
+              :{gateway.port} {gateway.running ? `live · ${gateway.connections} conn` : "off"}
+            </span>
+          )}
+          <span className="font-mono text-xs text-dim border border-line px-2 py-1" data-testid="usage-guide-endpoint">
+            {active.host}:{active.port}
+          </span>
+        </div>
       </div>
 
-      <Tabs defaultValue="curl" className="p-4">
+      <Tabs defaultValue="gateway" className="p-4">
         <TabsList className="bg-black border border-line rounded-none h-auto flex-wrap justify-start gap-1 p-1">
           {snippets.map((s) => (
             <TabsTrigger

@@ -19,7 +19,8 @@ function Arrow() {
   return <ChevronRight className="text-line shrink-0" size={22} />;
 }
 
-export default function ArchitectureFlow({ active }) {
+export default function ArchitectureFlow({ active, gateway }) {
+  const gwPort = gateway?.port ? `:${gateway.port}` : ":8080";
   return (
     <div className="card-panel h-full p-5 grid-lines relative overflow-hidden" data-testid="architecture-flow">
       <div className="flex items-center justify-between mb-4">
@@ -41,13 +42,13 @@ export default function ArchitectureFlow({ active }) {
           active={!!active}
         />
         <Arrow />
-        <Node icon={Server} label="Proxy Server" sub=":8080" accent />
+        <Node icon={Server} label="Proxy Server" sub={gateway?.running ? `${gwPort} · live` : gwPort} accent />
         <Arrow />
         <Node icon={Globe} label="Web Kamu" sub="output" />
       </div>
       <p className="mt-3 text-xs text-dim font-mono">
         {active
-          ? `Traffic diteruskan lewat ${active.type} · ${active.host}:${active.port}`
+          ? `Traffic diteruskan lewat ${active.type} · ${active.host}:${active.port}${gateway?.running ? ` · gateway ${gwPort} (${gateway.connections} koneksi, ${((gateway.bytes_down || 0) / 1024).toFixed(1)} KB)` : ""}`
           : "Pilih satu proxy dari daftar untuk mengaktifkan gateway."}
       </p>
     </div>

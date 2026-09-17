@@ -4,19 +4,38 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { api, errMsg } from "@/lib/api";
 import { toast } from "sonner";
-import { KeyRound } from "lucide-react";
+import { KeyRound, Server } from "lucide-react";
 
 export default function SettingsDialog({ open, onOpenChange, onSaved }) {
   const [status, setStatus] = useState(null);
   const [value, setValue] = useState("");
   const [saving, setSaving] = useState(false);
+  const [port, setPort] = useState("");
+  const [savingPort, setSavingPort] = useState(false);
 
   const load = async () => {
     try {
       const { data } = await api.get("/settings");
       setStatus(data);
+      if (data.gateway_port) setPort(String(data.gateway_port));
     } catch (e) {
       /* ignore */
+    }
+  };
+
+  const savePort = async () => {
+    const p = parseInt(port, 10);
+    if (!p) return;
+    setSavingPort(true);
+    try {
+      const { data } = await api.post("/settings", { gateway_port: p });
+      toast.success(`Gateway pindah ke port ${data.gateway_port}`);
+      await load();
+      onSaved && onSaved();
+    } catch (e) {
+      toast.error(errMsg(e));
+    } finally {
+      setSavingPort(false);
     }
   };
 
@@ -45,7 +64,7 @@ export default function SettingsDialog({ open, onOpenChange, onSaved }) {
       <DialogContent className="bg-panel border-line text-foreground max-w-md" data-testid="settings-dialog">
         <DialogHeader>
           <DialogTitle className="font-heading flex items-center gap-2 tracking-tight">
-            <KeyRound size={18} className="text-neon" /> FloppyData API Key
+            <KeyRound size={18} className="text-neon" /> Pengaturan
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
@@ -78,6 +97,36 @@ export default function SettingsDialog({ open, onOpenChange, onSaved }) {
             >
               {saving ? "Menyimpan..." : "Simpan Key"}
             </Button>
+          </div>
+
+          <div className="border-t border-line pt-4 space-y-2">
+            <div className="flex items-center gap-2">
+              <Server size={15} className="text-laser" />
+              <span className="overline">Port Proxy Server (gateway)</span>
+            </div>
+            <p className="text-xs text-dim">
+              Port yang dipakai browser/OS kamu sebagai proxy (<span className="font-mono text-foreground">alamat-server:{status?.gateway_port || "…"}</span>). Ganti bila port bentrok.
+            </p>
+            <div className="flex gap-2">
+              <Input
+                type="number"
+                min={1024}
+                max={65535}
+                value={port}
+                onChange={(e) => setPort(e.target.value)}
+                className="font-mono bg-black border-line focus-visible:ring-neon w-40"
+                data-testid="settings-port-input"
+              />
+              <Button
+                onClick={savePort}
+                disabled={savingPort || !port || String(status?.gateway_port) === port}
+                variant="outline"
+                className="rounded-none border-line hover:border-laser hover:text-laser font-mono"
+                data-testid="settings-port-save-btn"
+              >
+                {savingPort ? "Mengganti..." : "Ganti Port"}
+              </Button>
+            </div>
           </div>
         </div>
       </DialogContent>

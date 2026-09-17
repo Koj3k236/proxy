@@ -7,6 +7,8 @@ import re
 import time
 import uuid
 import socket
+import base64
+from urllib.parse import urlsplit
 import asyncio
 import logging
 import requests
@@ -23,6 +25,13 @@ client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
 FLOPPY_BASE = os.environ.get('FLOPPYDATA_BASE_URL', 'https://api.floppydata.net')
+GATEWAY_PORT_DEFAULT = int(os.environ['GATEWAY_PORT'])
+
+GATEWAY: Dict[str, Any] = {"server": None, "port": None, "started_at": None, "error": None,
+                           "connections": 0, "active": 0, "bytes_up": 0, "bytes_down": 0,
+                           "errors": 0, "last_target": None}
+ACTIVE_PROXY: Dict[str, Any] = {"value": None}
+BULK: Dict[str, Any] = {"running": False}
 
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
@@ -169,10 +178,150 @@ def kind_of(geo: Dict[str, Any]) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Forward proxy gateway (browser/OS -> :GATEWAY_PORT -> FloppyData active IP)
+# ---------------------------------------------------------------------------
+async def _socks5_tunnel(active: Dict[str, Any], host: str, port: int):
+    r, w = await asyncio.open_connection(active["host"], active["port"])
+    w.write(b"\x05\x01\x02")
+    await w.drain()
+    if (await r.readexactly(2))[1] != 2:
+        raise RuntimeError("SOCKS5 upstream menolak auth user/pass")
+    u, p = active["username"].encode(), active["password"].encode()
+    w.write(b"\x01" + bytes([len(u)]) + u + bytes([len(p)]) + p)
+    await w.drain()
+    if (await r.readexactly(2))[1] != 0:
+        raise RuntimeError("SOCKS5 auth gagal")
+    hb = host.encode()
+    w.write(b"\x05\x01\x00\x03" + bytes([len(hb)]) + hb + port.to_bytes(2, "big"))
+    await w.drain()
+    resp = await r.readexactly(4)
+    if resp[1] != 0:
+        raise RuntimeError(f"SOCKS5 connect gagal (code {resp[1]})")
+    if resp[3] == 1:
+        await r.readexactly(6)
+    elif resp[3] == 3:
+        await r.readexactly((await r.readexactly(1))[0] + 2)
+    elif resp[3] == 4:
+        await r.readexactly(18)
+    return r, w
+
+
+async def _http_tunnel(active: Dict[str, Any], host: str, port: int):
+    r, w = await asyncio.open_connection(active["host"], active["port"])
+    auth = base64.b64encode(f"{active['username']}:{active['password']}".encode()).decode()
+    w.write(f"CONNECT {host}:{port} HTTP/1.1\r\nHost: {host}:{port}\r\nProxy-Authorization: Basic {auth}\r\n\r\n".encode())
+    await w.drain()
+    head = await r.readuntil(b"\r\n\r\n")
+    status = head.split(b"\r\n")[0]
+    if b" 200" not in status:
+        raise RuntimeError(f"Upstream menolak CONNECT: {status.decode(errors='ignore')}")
+    return r, w
+
+
+async def open_upstream(active: Dict[str, Any], host: str, port: int):
+    if active.get("protocol") == "socks5":
+        return await _socks5_tunnel(active, host, port)
+    return await _http_tunnel(active, host, port)
+
+
+async def _pipe(src: asyncio.StreamReader, dst: asyncio.StreamWriter, key: str):
+    try:
+        while True:
+            chunk = await src.read(65536)
+            if not chunk:
+                break
+            GATEWAY[key] += len(chunk)
+            dst.write(chunk)
+            await dst.drain()
+    except Exception:
+        pass
+    finally:
+        try:
+            dst.close()
+        except Exception:
+            pass
+
+
+async def handle_gateway_client(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
+    GATEWAY["connections"] += 1
+    GATEWAY["active"] += 1
+    uw = None
+    try:
+        head = await asyncio.wait_for(reader.readuntil(b"\r\n\r\n"), timeout=30)
+        line, _, rest = head.partition(b"\r\n")
+        method, target, version = line.decode(errors="ignore").split(" ", 2)
+        active = ACTIVE_PROXY["value"]
+        if not active:
+            writer.write(b"HTTP/1.1 503 Service Unavailable\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\n"
+                         b"Belum ada proxy aktif. Pilih IP (USE) di dashboard.\n")
+            await writer.drain()
+            return
+        if method.upper() == "CONNECT":
+            host, _, port_s = target.rpartition(":")
+            port = int(port_s or 443)
+            ur, uw = await asyncio.wait_for(open_upstream(active, host, port), timeout=30)
+            writer.write(b"HTTP/1.1 200 Connection Established\r\n\r\n")
+            await writer.drain()
+        else:
+            u = urlsplit(target)
+            host, port = u.hostname, u.port or 80
+            path = (u.path or "/") + (f"?{u.query}" if u.query else "")
+            headers = [h for h in rest.split(b"\r\n") if h and not h.lower().startswith((b"proxy-connection", b"connection", b"proxy-authorization"))]
+            headers.append(b"Connection: close")
+            ur, uw = await asyncio.wait_for(open_upstream(active, host, port), timeout=30)
+            uw.write(f"{method} {path} {version}\r\n".encode() + b"\r\n".join(headers) + b"\r\n\r\n")
+            await uw.drain()
+        GATEWAY["last_target"] = f"{host}:{port}"
+        await asyncio.gather(_pipe(reader, uw, "bytes_up"), _pipe(ur, writer, "bytes_down"))
+    except Exception as e:
+        GATEWAY["errors"] += 1
+        logger.warning(f"gateway error: {e}")
+        try:
+            writer.write(f"HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n{e}\n".encode())
+            await writer.drain()
+        except Exception:
+            pass
+    finally:
+        GATEWAY["active"] -= 1
+        writer.close()
+        if uw:
+            uw.close()
+
+
+async def start_gateway(port: int):
+    if GATEWAY["server"]:
+        GATEWAY["server"].close()
+        await GATEWAY["server"].wait_closed()
+        GATEWAY["server"] = None
+    try:
+        GATEWAY["server"] = await asyncio.start_server(handle_gateway_client, "0.0.0.0", port)
+        GATEWAY.update(port=port, started_at=now_iso(), error=None)
+        logger.info(f"gateway listening on :{port}")
+    except OSError as e:
+        GATEWAY.update(port=port, error=f"Port {port} tidak bisa dipakai: {e.strerror}")
+        logger.error(GATEWAY["error"])
+
+
+def gateway_status() -> Dict[str, Any]:
+    return {k: v for k, v in GATEWAY.items() if k != "server"} | {
+        "running": GATEWAY["server"] is not None,
+        "active_ip": (ACTIVE_PROXY["value"] or {}).get("exit_ip"),
+    }
+
+
+# ---------------------------------------------------------------------------
 # Models
 # ---------------------------------------------------------------------------
 class SettingsIn(BaseModel):
-    api_key: str
+    api_key: Optional[str] = None
+    gateway_port: Optional[int] = None
+
+
+class BulkScanIn(BaseModel):
+    type: str = "residential"
+    country: str = "US"
+    protocol: str = "http"
+    per_state: int = 20
 
 
 class BuildIn(BaseModel):
@@ -241,17 +390,34 @@ async def get_settings():
         "configured": bool(key),
         "api_key_masked": masked,
         "source": "user" if db_key else ("env" if env_key else None),
+        "gateway_port": GATEWAY["port"],
     }
 
 
 @api_router.post("/settings")
 async def save_settings(body: SettingsIn):
-    await db.settings.update_one(
-        {"_id": "app"},
-        {"$set": {"api_key": body.api_key.strip(), "updated_at": now_iso()}},
-        upsert=True,
-    )
-    return {"ok": True}
+    update: Dict[str, Any] = {"updated_at": now_iso()}
+    if body.api_key and body.api_key.strip():
+        update["api_key"] = body.api_key.strip()
+    if body.gateway_port:
+        if not (1024 <= body.gateway_port <= 65535):
+            raise HTTPException(status_code=400, detail="Port harus antara 1024 dan 65535.")
+    if body.gateway_port and body.gateway_port != GATEWAY["port"]:
+        prev_port = GATEWAY["port"]
+        await start_gateway(body.gateway_port)
+        if GATEWAY["error"]:
+            await start_gateway(prev_port)
+            raise HTTPException(status_code=400, detail=f"Port {body.gateway_port} sudah dipakai proses lain. Gateway tetap di :{prev_port}.")
+        update["gateway_port"] = body.gateway_port
+    elif body.gateway_port:
+        update["gateway_port"] = body.gateway_port
+    await db.settings.update_one({"_id": "app"}, {"$set": update}, upsert=True)
+    return {"ok": True, "gateway_port": GATEWAY["port"]}
+
+
+@api_router.get("/gateway/status")
+async def get_gateway_status():
+    return gateway_status()
 
 
 @api_router.get("/account/balance")
@@ -316,6 +482,7 @@ async def proxy_build(body: BuildIn):
 async def proxy_activate(body: ProxyConnection):
     doc = body.model_dump()
     await db.settings.update_one({"_id": "app"}, {"$set": {"active_proxy": doc}}, upsert=True)
+    ACTIVE_PROXY["value"] = doc
     hist = dict(doc)
     hist["used_at"] = now_iso()
     await db.history.insert_one({**hist, "_id": str(uuid.uuid4())})
@@ -368,11 +535,7 @@ async def proxy_fetch(body: FetchIn):
     return result
 
 
-@api_router.post("/pool/scan")
-async def pool_scan(body: ScanIn):
-    key = await get_api_key()
-    if not key:
-        raise HTTPException(status_code=400, detail="FloppyData API key belum diatur.")
+async def run_scan(key: str, body: ScanIn) -> Dict[str, Any]:
     count = max(1, min(body.count, 50))
     payload: Dict[str, Any] = {"type": body.type, "protocol": body.protocol, "rotation": 0, "country": body.country}
     if body.state:
@@ -436,6 +599,63 @@ async def pool_scan(body: ScanIn):
     return {"scanned": count, "alive": len(alive), "new": new_count, "items": items}
 
 
+@api_router.post("/pool/scan")
+async def pool_scan(body: ScanIn):
+    key = await get_api_key()
+    if not key:
+        raise HTTPException(status_code=400, detail="FloppyData API key belum diatur.")
+    return await run_scan(key, body)
+
+
+async def bulk_worker(key: str, body: BulkScanIn, states: List[Optional[str]]):
+    for i, st in enumerate(states):
+        if not BULK["running"]:
+            break
+        BULK["current"] = (st or "any").replace("_", " ")
+        try:
+            res = await run_scan(key, ScanIn(type=body.type, country=body.country, state=st,
+                                             protocol=body.protocol, count=body.per_state))
+            BULK["found"] += res["alive"]
+            BULK["new"] += res["new"]
+        except Exception as e:
+            BULK["errors"] += 1
+            logger.warning(f"bulk scan {st} failed: {e}")
+        BULK["done"] = i + 1
+    BULK["running"] = False
+    BULK["finished_at"] = now_iso()
+
+
+@api_router.post("/pool/scan-bulk")
+async def pool_scan_bulk(body: BulkScanIn):
+    if BULK.get("running"):
+        raise HTTPException(status_code=409, detail="Scan massal masih berjalan.")
+    key = await get_api_key()
+    if not key:
+        raise HTTPException(status_code=400, detail="FloppyData API key belum diatur.")
+    data = await asyncio.to_thread(floppy_request, "GET", "/v2/proxy/rotating/locations", key, None, {"type": body.type})
+    loc = next((l for l in data.get("items", []) if l.get("countryCode") == body.country), None)
+    if not loc:
+        raise HTTPException(status_code=404, detail=f"Negara {body.country} tidak tersedia untuk type {body.type}.")
+    states: List[Optional[str]] = loc.get("states") or [None]
+    BULK.clear()
+    BULK.update(running=True, country=body.country, type=body.type, per_state=max(1, min(body.per_state, 50)),
+                total=len(states), done=0, found=0, new=0, errors=0, current=None,
+                started_at=now_iso(), finished_at=None)
+    asyncio.create_task(bulk_worker(key, body, states))
+    return BULK
+
+
+@api_router.get("/pool/scan-bulk/status")
+async def pool_scan_bulk_status():
+    return BULK
+
+
+@api_router.post("/pool/scan-bulk/stop")
+async def pool_scan_bulk_stop():
+    BULK["running"] = False
+    return BULK
+
+
 @api_router.get("/pool")
 async def pool_list():
     return await db.pool.find({}, {"_id": 0}).sort("added_at", -1).to_list(2000)
@@ -482,6 +702,15 @@ app.add_middleware(
 )
 
 
+@app.on_event("startup")
+async def startup():
+    doc = await db.settings.find_one({"_id": "app"})
+    ACTIVE_PROXY["value"] = doc.get("active_proxy") if doc else None
+    await start_gateway((doc or {}).get("gateway_port") or GATEWAY_PORT_DEFAULT)
+
+
 @app.on_event("shutdown")
 async def shutdown_db_client():
+    if GATEWAY["server"]:
+        GATEWAY["server"].close()
     client.close()
