@@ -48,7 +48,7 @@ export default function ActiveProxyCard({ active }) {
 
       <div className="grid grid-cols-2 gap-4 mb-4">
         <Stat label="Exit IP" value={active.exit_ip || "—"} className="text-neon text-base" />
-        <Stat label="Gateway Port" value={active.port} />
+        <Stat label="Protocol · Port" value={`${(active.protocol || "http").toUpperCase()} · ${active.port}`} />
         <Stat label="Country" value={active.country || "AUTO"} />
         <Stat label="Latency" value={active.latency_ms != null ? `${active.latency_ms} ms` : "—"} className={alive ? "text-laser" : "text-signal"} />
       </div>

@@ -7,6 +7,7 @@ import ActiveProxyCard from "@/components/ActiveProxyCard";
 import ProxyList from "@/components/ProxyList";
 import ProxyTools from "@/components/ProxyTools";
 import UsageHistory from "@/components/UsageHistory";
+import UsageGuide from "@/components/UsageGuide";
 import { Button } from "@/components/ui/button";
 import { Settings2, Gauge } from "lucide-react";
 
@@ -113,7 +114,10 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Row 3: history */}
+          {/* Row 3: usage guide */}
+          <UsageGuide active={active} />
+
+          {/* Row 4: history */}
           <UsageHistory items={history} onChanged={onActivated} />
 
           <footer className="pt-2 pb-6 text-center">

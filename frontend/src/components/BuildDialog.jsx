@@ -119,6 +119,7 @@ export default function BuildDialog({ location, onClose, onActivated }) {
               <SelectContent className="bg-panel border-line">
                 <SelectItem value="http" className="font-mono">HTTP</SelectItem>
                 <SelectItem value="https" className="font-mono">HTTPS</SelectItem>
+                <SelectItem value="socks5" className="font-mono" data-testid="build-protocol-socks5">SOCKS5</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -135,7 +136,7 @@ export default function BuildDialog({ location, onClose, onActivated }) {
               <span className="text-dim">· {result.latency_ms} ms</span>
             </div>
             <div className="text-dim">exit_ip: <span className="text-neon">{result.exit_ip || "—"}</span></div>
-            <div className="text-dim break-all">endpoint: {result.host}:{result.port}</div>
+            <div className="text-dim break-all">endpoint: <span className="text-neon uppercase">{result.protocol}</span> {result.host}:{result.port}</div>
           </div>
         )}
 

@@ -27,6 +27,11 @@ Tugas kuliah (dosen): buat web yang mengambil daftar proxy dari floppydata.com, 
 - Dashboard UI: Active Proxy hero card, Architecture Flow visual, Proxy List (tabs+search), Test & Fetch terminal, Usage History, balance chip.
 - Verified end-to-end: build→activate→fetch mengembalikan exit IP US yang cocok; testing agent 100% backend & frontend.
 
+## Implemented (2026-06-18) — SOCKS5
+- Opsi protocol SOCKS5 di BuildDialog; backend memakai PySocks (`socks5h://`) untuk probe & fetch via SOCKS5 (FloppyData port 10800). Verified build→activate→fetch SOCKS5 US alive.
+- Panel "Cara Pakai" (UsageGuide.jsx, Step 3): snippet siap-copy sesuai proxy aktif — curl, Windows/macOS, Firefox, Telegram (tg://socks), Python, Shell env.
+- ActiveProxyCard menampilkan Protocol · Port.
+
 ## Backlog (P1/P2)
 - P1: DialogDescription/aria untuk a11y warning Radix.
 - P2: auth pada POST /api/settings (proteksi API key) untuk produksi.

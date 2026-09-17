@@ -31,7 +31,7 @@ export default function UsageHistory({ items, onChanged }) {
         <div className="flex items-center gap-2">
           <History size={16} className="text-dim" />
           <div>
-            <span className="overline">Step 3 · Log</span>
+            <span className="overline">Step 4 · Log</span>
             <h3 className="font-heading text-lg tracking-tight">Riwayat Proxy</h3>
           </div>
         </div>

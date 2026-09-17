@@ -59,8 +59,14 @@ def floppy_request(method: str, path: str, api_key: str, json_body: Optional[dic
     return data
 
 
+def proxy_map(connection_string: str) -> Dict[str, str]:
+    if connection_string.startswith("socks5://"):
+        connection_string = "socks5h://" + connection_string[len("socks5://"):]
+    return {"http": connection_string, "https": connection_string}
+
+
 def probe_proxy(connection_string: str, target: str = "https://api.ipify.org?format=json") -> Dict[str, Any]:
-    proxies = {"http": connection_string, "https": connection_string}
+    proxies = proxy_map(connection_string)
     start = time.time()
     try:
         r = requests.get(target, proxies=proxies, timeout=30)
@@ -77,7 +83,7 @@ def probe_proxy(connection_string: str, target: str = "https://api.ipify.org?for
 
 
 def fetch_through_proxy(connection_string: str, url: str) -> Dict[str, Any]:
-    proxies = {"http": connection_string, "https": connection_string}
+    proxies = proxy_map(connection_string)
     start = time.time()
     r = requests.get(url, proxies=proxies, timeout=45, headers={
         "User-Agent": "Mozilla/5.0 (compatible; FloppyProxyGateway/1.0)"
