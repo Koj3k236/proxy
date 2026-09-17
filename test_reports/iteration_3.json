@@ -1,0 +1,37 @@
+{
+  "summary": "Iteration 3 validated the new forward-proxy gateway, port switching, and bulk-scan features end-to-end. Backend: 6/6 new pytest cases in test_gateway_bulk.py PASS (test_gateway_status_running, gateway_https_and_http_through_active [both HTTPS CONNECT and plain HTTP through :8888 return the active exit_ip and status shows connections>=2 & bytes_down>0 & last_target set], gateway_via_http_pool_item [activate an http pool row -> curl through :8888 returns that IP], gateway_via_socks5_build [POST /proxy/build socks5 US -> activate -> curl through :8888 returns new exit_ip], settings_port_switch_and_errors [POST {gateway_port:8899} switches port and tunnel works on :8899, GET /settings reflects 8899; POST 8080 returns 400 with 'sudah dipakai' and status still :8899 running; POST 80 returns 400 range error; POST 8888 restores], bulk_scan_flow [POST /pool/scan-bulk US per_state=2 -> running:true total 45; duplicate POST returns 409; status.done increases; stop returns running:false]). Frontend (localhost:3000): usage-guide gateway-status-chip shows ':8888 live · N conn', guide-tab-gateway is default active, guide-code-gateway contains 'Port          : 8888' and 'curl -x http://…:8888'. ArchitectureFlow 'Proxy Server' node shows ':8888 · live'. Settings dialog opens via topbar-settings-btn, settings-port-input prefilled 8888; changing to 8899 fires toast 'Gateway pindah ke port 8899' and chip updates to :8899 within 6s; posting 8080 shows error toast containing 'dipakai' and chip stays :8899; restored to 8888 successfully. Bulk scan: clicking pool-bulk-btn ('Scan USA') starts the job, button flips to 'Stop', bulk-progress renders 'scan massal US · state x/45' with percent bar; clicking Stop removes progress and button reverts to 'Scan USA'.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "ProxyTools", "issue": "Fallback text uses ':8080' before gateway status loads — since env default is 8888 and 8080 is known-occupied in this container, users may briefly see the wrong port. Change fallback to '8888' or hide until gateway is fetched.", "selector": "[data-testid='proxy-tools'] .overline", "priority": "LOW"},
+      {"component": "UsageHistory (unresolved from iteration_2)", "issue": "React 'two children with the same key' warning still floods the console on every render because /api/history rows reuse the proxy id as key. Not blocking but pollutes console and can cause row de-dup.", "selector": "[data-testid='usage-history'] tr", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_gateway_bulk.py",
+    "/app/test_reports/pytest/gateway_bulk_results.xml"
+  ],
+  "action_items": [
+    "(low) ProxyTools.jsx line 65: change `|| \"8080\"` fallback to `|| \"8888\"` (or gate render on `gateway`) to avoid showing the known-occupied port during initial poll window.",
+    "(low, carried from iteration_2) Fix UsageHistory duplicate-key warning — either key rows on `${it.id}-${it.used_at}` or assign a unique history_id server-side in /api/history."
+  ],
+  "critical_code_review_comments": [
+    "server.py handle_gateway_client: on non-CONNECT requests the raw request-line/headers are forwarded as-is (host header may still be absolute-URI hostname) — for stricter HTTP compliance rewrite Host header; works fine for api.ipify but some picky origins will reject. Also the client-side reader is not read past headers into upstream (rest bytes after \\r\\n\\r\\n are dropped) — GET has no body so OK, but POST plain-HTTP through the gateway would silently drop the body. Recommend: `uw.write(rest)` after headers, or forward the body length.",
+    "server.py bulk_worker: no per-state timeout — a stuck FloppyData call could freeze `current` for a long time. Consider `asyncio.wait_for(run_scan(...), timeout=90)`.",
+    "server.py save_settings: recovery path `await start_gateway(prev_port)` after a failed rebind is fine, but the intermediate `start_gateway(body.gateway_port)` sets `GATEWAY['port']=body.gateway_port` even after failure — the subsequent restore fixes it, but `gateway_status()` briefly reports the failed port. Consider not mutating GATEWAY['port'] until bind succeeds.",
+    "SettingsDialog.jsx savePort disables the Ganti Port button when `String(status?.gateway_port) === port`; after a failed 8080 attempt, the input still holds '8080' so retrying with same value is possible, but if user re-opens dialog it shows the previous good port only — minor UX inconsistency.",
+    "ProxyTools.jsx: fallback port '8080' contradicts the actual GATEWAY_PORT_DEFAULT=8888 (fix noted above)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_gateway_bulk.py"
+  ],
+  "success_rate": {"backend": "100% (6/6 new + 9/9 prior + 5/5 pool)", "frontend": "100% (all critical flows pass; 1 cosmetic fallback port + carry-over duplicate-key warning)"},
+  "test_credentials": "none (FloppyData key from backend/.env)",
+  "seed_data_creation": "Bulk scan started and stopped during tests — pool grew from ~581 to ~665 US rows. No cleanup needed.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Gateway is only reachable inside the container — use `localhost:8888` (or the current gateway_port from GET /api/gateway/status). External REACT_APP_BACKEND_URL only serves /api routes. Bulk scan running-state persists across backend hot-reloads via the in-memory BULK dict; always POST /api/pool/scan-bulk/stop before starting a fresh scan test or you'll get 409. Setting/API tests are safe to re-run — the endpoint idempotently restores 8888 at the end.",
+  "rca of the issue": "ProxyTools shows :8080 for the ~1-2s window between mount and the first `/api/gateway/status` poll. Root cause: hard-coded fallback string in ProxyTools.jsx:65 `gateway?.port || \"8080\"` doesn't match the real env default GATEWAY_PORT=8888. UsageGuide/ArchitectureFlow don't have this issue because they render only when gateway prop is set or use dynamic defaults. Fix: replace fallback with '8888' or conditionally render when gateway is loaded."
+}

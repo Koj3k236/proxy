@@ -38,6 +38,13 @@ Tugas kuliah (dosen): buat web yang mengambil daftar proxy dari floppydata.com, 
 - USE → /api/proxy/activate; sesi sticky → health check mengembalikan IP yang sama. ProxyList.jsx & BuildDialog.jsx dihapus.
 - Testing agent iteration_2: backend 5/5, frontend semua alur lolos.
 
+## Implemented (2026-06-18) — Forward Proxy Gateway :8888 + Scan USA massal
+- Backend menjalankan **forward proxy asli** (asyncio TCP server) di GATEWAY_PORT (default 8888 dari backend/.env; 8080 terpakai proses lain di container). Browser/OS pakai `alamat-server:8888` tanpa auth → tunnel HTTP CONNECT / plain HTTP → upstream FloppyData (HTTP Basic atau SOCKS5 handshake) → IP aktif. Stats di GET /api/gateway/status.
+- Port bisa diganti via Settings (POST /api/settings {gateway_port}); port bentrok → 400 dan tetap di port lama. Disimpan di settings.gateway_port, dipulihkan saat startup.
+- Bulk scan: POST /api/pool/scan-bulk {country, per_state} → background task per state; GET .../status; POST .../stop. Tombol "Scan USA" + progress bar di IP Pool (pool/BulkScan.jsx).
+- UsageGuide tab pertama "Gateway :port" + chip status; ArchitectureFlow & ProxyTools menampilkan port dinamis.
+- Testing agent iteration_3: backend 6/6, frontend semua alur lolos. Pool USA ±380 IP → scan massal 45 state × 20 sedang berjalan.
+
 ## Backlog (P1/P2)
 - P1: DialogDescription/aria untuk a11y warning Radix.
 - P2: auth pada POST /api/settings (proteksi API key) untuk produksi.
