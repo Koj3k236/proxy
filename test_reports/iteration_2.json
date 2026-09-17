@@ -1,0 +1,35 @@
+{
+  "summary": "Iteration 2 - focused on new IP Pool + SOCKS5 + Cara Pakai usage guide. Backend: 5/5 pytest new tests pass (pool scan Texas count=5 completed in <10s, item shape complete, /api/pool sorted desc no _id, DELETE /api/pool/{id} removes row, activate pool item -> sticky exit_ip via /api/proxy/test, SOCKS5 build port 10800 + fetch via socks5h returns http_status 200 with body containing IP). Frontend: dashboard renders IPPool, all 6 region-nav items with correct testids (US/AMERICA/EUROPE/OCEANIA/ASIA/AFRICA - NOT the shortened AM/EU/AU/AS/AF used in the review request), all 7 filter inputs, chip row with CA/TX (US) and DE (Europe). Chip filter, per-column filter (city='Los' -> 2 rows), kind=DC filter, region switch to EUROPE showing 5 DE rows all work. USE button activates pool item -> shows ACTIVE, active-proxy-card exit IP updates, usage-guide tabs curl/windows/firefox/telegram/python/env render with copy buttons (mount lazily per active Radix tab), Health Check terminal returns SAME exit_ip as activated (sticky sessions verified), Riwayat Proxy grows on activation. Scan dialog: opened, selected 10 IP count, scan completed with toast 'Scan selesai · 10 IP hidup, 10 baru', pool count grew from 19 -> 29.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "UsageHistory", "issue": "React console warning: 'Encountered two children with the same key' - key={it.id} uses the proxy id which is duplicated when the same proxy is re-activated. Backend inserts history with unique _id but reuses the proxy id field; frontend should key on used_at or _id (or backend should not expose reused id). Non-blocking but pollutes console.", "selector": "[data-testid='usage-history'] tr", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_pool_socks5.py",
+    "/app/test_reports/pytest/pool_socks5_results.xml"
+  ],
+  "action_items": [
+    "(low) Fix React duplicate key warning in UsageHistory: either key={`${it.id}-${it.used_at}`} in UsageHistory.jsx line 65, or backend /api/history should also expose a per-row unique key (e.g., include the mongo _id as history_id in the projection or generate a fresh id per history row rather than reusing the proxy id)."
+  ],
+  "critical_code_review_comments": [
+    "backend server.py line 321: `hist = dict(doc); await db.history.insert_one({**hist, '_id': str(uuid.uuid4())})` — the outer `id` (proxy id) is preserved and gets duplicated across re-activations of same proxy. Consider `hist['id'] = str(uuid.uuid4())` and store `proxy_id = doc['id']` separately so history rows have unique ids.",
+    "server.py pool_scan runs count builds sequentially through a semaphore of 8 with 30s HTTP timeouts and requests.get for each probe; for count=50 with slow proxies this can approach 60s. Consider surfacing a `duration_ms` in the response and/or lowering the per-probe timeout to 15s.",
+    "server.py `probe_proxy` catches all exceptions but never logs the error — makes debugging silent proxy failures hard. Add logger.warning for dead probes.",
+    "regions.js: countries missing from EUROPE/ASIA/OCEANIA/AFRICA fall through to AMERICA (see regionOf default). That silently misclassifies any unmapped country. Fine for demo but add UNKNOWN bucket ideally.",
+    "IPPool.jsx: after clearPool the UI empties rows locally but does not reset region/chip; harmless."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_pool_socks5.py"
+  ],
+  "success_rate": {"backend": "100% (5/5 new + 9/9 prior)", "frontend": "100% (all critical flows pass)"},
+  "test_credentials": "none (FloppyData key from env)",
+  "seed_data_creation": "Left pool populated: 29 IPs total (24 US incl. TX+CA, 5 DE). One TX row activated as gateway. Do NOT clear before next agent runs frontend visuals.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Review-request used shorthand region test-ids (region-US/AM/EU/AU/AS/AF). Actual ids in /app/frontend/src/lib/regions.js are US/AMERICA/EUROPE/OCEANIA/ASIA/AFRICA. Chip-DE for Europe present. Radix Tabs only mount the active TabsContent -> guide-copy-* buttons for non-active tabs are NOT in the DOM until the tab is activated (this is Radix's default and not a bug). Backend scans consume real FloppyData bandwidth; keep counts small (5-10). The React duplicate-key warning is the only known issue and is cosmetic.",
+  "rca of the issue": "Duplicate-key React warning root cause: /api/history rows are keyed on the reused proxy id (doc.id) in the DB and the frontend uses that same id as React key. When user activates the same proxy connection twice the two history rows collide in the UI's key namespace. Fix: change frontend key to `${it.id}-${it.used_at}` or generate a fresh unique id per history record in backend proxy_activate."
+}

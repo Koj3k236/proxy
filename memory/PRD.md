@@ -32,6 +32,12 @@ Tugas kuliah (dosen): buat web yang mengambil daftar proxy dari floppydata.com, 
 - Panel "Cara Pakai" (UsageGuide.jsx, Step 3): snippet siap-copy sesuai proxy aktif — curl, Windows/macOS, Firefox, Telegram (tg://socks), Python, Shell env.
 - ActiveProxyCard menampilkan Protocol · Port.
 
+## Implemented (2026-06-18) — IP Pool (tabel per-IP gaya 922proxy)
+- Mengganti Proxy List lama dengan **IP Pool** (components/pool/*): region nav kiri (USA/America/Europe/AU,Oceania/Asia/Africa + count), chip state/negara di atas, filter per kolom (IP, Domain, ST, City, ISP, ZIP, Type ISP/ISP-MOB/DC), baris IP:port · domain(rDNS) · state · city · ISP · zip · ping · type · added · USE.
+- Backend: POST /api/pool/scan (build N sesi sticky rotation=0 paralel → probe exit IP+ping → geo ip-api.com batch → rDNS), GET /api/pool, DELETE /api/pool/{id}, DELETE /api/pool. Koleksi Mongo `pool` (upsert by ip).
+- USE → /api/proxy/activate; sesi sticky → health check mengembalikan IP yang sama. ProxyList.jsx & BuildDialog.jsx dihapus.
+- Testing agent iteration_2: backend 5/5, frontend semua alur lolos.
+
 ## Backlog (P1/P2)
 - P1: DialogDescription/aria untuk a11y warning Radix.
 - P2: auth pada POST /api/settings (proteksi API key) untuk produksi.
