@@ -32,7 +32,7 @@ export default function ArchitectureFlow({ active }) {
       <div className="flex items-center gap-2 overflow-x-auto pb-2">
         <Node icon={Cloud} label="Sumber" sub="FloppyData" />
         <Arrow />
-        <Node icon={ListTree} label="Daftar Proxy" sub="Locations" />
+        <Node icon={ListTree} label="Daftar Proxy" sub="IP Pool" />
         <Arrow />
         <Node
           icon={Globe}

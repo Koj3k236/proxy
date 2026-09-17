@@ -4,7 +4,7 @@ import Sidebar from "@/components/Sidebar";
 import SettingsDialog from "@/components/SettingsDialog";
 import ArchitectureFlow from "@/components/ArchitectureFlow";
 import ActiveProxyCard from "@/components/ActiveProxyCard";
-import ProxyList from "@/components/ProxyList";
+import IPPool from "@/components/pool/IPPool";
 import ProxyTools from "@/components/ProxyTools";
 import UsageHistory from "@/components/UsageHistory";
 import UsageGuide from "@/components/UsageGuide";
@@ -104,18 +104,18 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Row 2: list + tools */}
+          {/* Row 2: IP pool (full width) */}
+          <IPPool active={active} onActivated={onActivated} />
+
+          {/* Row 3: tools + usage guide */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <div className="lg:col-span-8">
-              <ProxyList onActivated={onActivated} />
-            </div>
             <div className="lg:col-span-4">
               <ProxyTools active={active} />
             </div>
+            <div className="lg:col-span-8">
+              <UsageGuide active={active} />
+            </div>
           </div>
-
-          {/* Row 3: usage guide */}
-          <UsageGuide active={active} />
 
           {/* Row 4: history */}
           <UsageHistory items={history} onChanged={onActivated} />

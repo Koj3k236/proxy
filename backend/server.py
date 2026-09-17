@@ -6,6 +6,7 @@ import os
 import re
 import time
 import uuid
+import socket
 import asyncio
 import logging
 import requests
@@ -104,6 +105,69 @@ def fetch_through_proxy(connection_string: str, url: str) -> Dict[str, Any]:
     }
 
 
+GEO_FIELDS = "status,countryCode,region,regionName,city,zip,isp,org,reverse,mobile,hosting,query"
+
+
+def geo_lookup(ips: List[str]) -> Dict[str, Dict[str, Any]]:
+    out: Dict[str, Dict[str, Any]] = {}
+    for i in range(0, len(ips), 100):
+        chunk = ips[i:i + 100]
+        try:
+            r = requests.post(f"http://ip-api.com/batch?fields={GEO_FIELDS}", json=chunk, timeout=30)
+            for item in r.json():
+                if item.get("status") == "success":
+                    out[item["query"]] = item
+        except Exception as e:
+            logger.warning(f"geo lookup failed: {e}")
+    return out
+
+
+def rdns(ip: str) -> Optional[str]:
+    try:
+        name = socket.gethostbyaddr(ip)[0]
+    except Exception:
+        return None
+    labels = name.split(".")
+    return "*.*." + ".".join(labels[-2:]) if len(labels) > 2 else name
+
+
+async def rdns_many(ips: List[str]) -> Dict[str, Optional[str]]:
+    async def one(ip):
+        try:
+            return ip, await asyncio.wait_for(asyncio.to_thread(rdns, ip), timeout=6)
+        except Exception:
+            return ip, None
+    pairs = await asyncio.gather(*[one(ip) for ip in ips])
+    return dict(pairs)
+
+
+def build_and_probe(api_key: str, payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    data = floppy_request("POST", "/v2/proxy/rotating/connections", api_key, payload)
+    conn = data.get("connection", {})
+    cs = conn.get("connectionString")
+    probe = probe_proxy(cs)
+    if probe.get("status") != "alive" or not probe.get("exit_ip"):
+        return None
+    return {
+        "protocol": conn.get("protocol", payload["protocol"]),
+        "host": conn.get("host"),
+        "port": conn.get("port"),
+        "username": conn.get("username"),
+        "password": conn.get("password"),
+        "connection_string": cs,
+        "exit_ip": probe["exit_ip"],
+        "latency_ms": probe["latency_ms"],
+    }
+
+
+def kind_of(geo: Dict[str, Any]) -> str:
+    if geo.get("hosting"):
+        return "DC"
+    if geo.get("mobile"):
+        return "ISP/MOB"
+    return "ISP"
+
+
 # ---------------------------------------------------------------------------
 # Models
 # ---------------------------------------------------------------------------
@@ -137,6 +201,15 @@ class ProxyConnection(BaseModel):
     latency_ms: Optional[int] = None
     status: Optional[str] = None
     created_at: str = Field(default_factory=now_iso)
+
+
+class ScanIn(BaseModel):
+    type: str = "residential"
+    country: str
+    state: Optional[str] = None
+    city: Optional[str] = None
+    protocol: str = "http"
+    count: int = 20
 
 
 class FetchIn(BaseModel):
@@ -293,6 +366,91 @@ async def proxy_fetch(body: FetchIn):
         "port": active.get("port"),
     }
     return result
+
+
+@api_router.post("/pool/scan")
+async def pool_scan(body: ScanIn):
+    key = await get_api_key()
+    if not key:
+        raise HTTPException(status_code=400, detail="FloppyData API key belum diatur.")
+    count = max(1, min(body.count, 50))
+    payload: Dict[str, Any] = {"type": body.type, "protocol": body.protocol, "rotation": 0, "country": body.country}
+    if body.state:
+        payload["state"] = body.state
+    if body.city:
+        payload["city"] = body.city
+
+    sem = asyncio.Semaphore(8)
+
+    async def one():
+        async with sem:
+            try:
+                return await asyncio.to_thread(build_and_probe, key, payload)
+            except Exception as e:
+                logger.warning(f"scan build failed: {e}")
+                return None
+
+    results = await asyncio.gather(*[one() for _ in range(count)])
+    alive: Dict[str, Dict[str, Any]] = {}
+    for r in results:
+        if r and r["exit_ip"] not in alive:
+            alive[r["exit_ip"]] = r
+
+    geo = await asyncio.to_thread(geo_lookup, list(alive.keys())) if alive else {}
+    domains = await rdns_many(list(alive.keys())) if alive else {}
+    ts = now_iso()
+    new_count = 0
+    items = []
+    for ip, r in alive.items():
+        g = geo.get(ip, {})
+        doc = {
+            **r,
+            "ip": ip,
+            "type": body.type,
+            "country": g.get("countryCode") or body.country,
+            "state": (g.get("regionName") or (body.state or "")).replace("_", " ") or None,
+            "state_code": g.get("region"),
+            "city": (g.get("city") or (body.city or "")).replace("_", " ") or None,
+            "zip": g.get("zip"),
+            "isp": g.get("isp") or g.get("org"),
+            "domain": domains.get(ip) or g.get("reverse"),
+            "kind": kind_of(g) if g else "ISP",
+            "rotation": 0,
+            "status": "alive",
+            "req_state": body.state,
+            "req_city": body.city,
+            "last_seen": ts,
+        }
+        existing = await db.pool.find_one({"ip": ip}, {"_id": 0, "id": 1, "added_at": 1})
+        if existing:
+            doc["id"] = existing["id"]
+            doc["added_at"] = existing["added_at"]
+        else:
+            doc["id"] = str(uuid.uuid4())
+            doc["added_at"] = ts
+            doc["created_at"] = ts
+            new_count += 1
+        await db.pool.update_one({"ip": ip}, {"$set": doc}, upsert=True)
+        items.append(doc)
+
+    return {"scanned": count, "alive": len(alive), "new": new_count, "items": items}
+
+
+@api_router.get("/pool")
+async def pool_list():
+    return await db.pool.find({}, {"_id": 0}).sort("added_at", -1).to_list(2000)
+
+
+@api_router.delete("/pool/{item_id}")
+async def pool_delete(item_id: str):
+    await db.pool.delete_one({"id": item_id})
+    return {"ok": True}
+
+
+@api_router.delete("/pool")
+async def pool_clear():
+    await db.pool.delete_many({})
+    return {"ok": True}
 
 
 @api_router.get("/history")
