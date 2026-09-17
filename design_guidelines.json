@@ -1,0 +1,112 @@
+{
+  "theme": "Dark technical/hacker-style dashboard theme. A clean, professional blend of Retro-Futurism (Terminal) and Swiss High-Contrast architecture.",
+  "colors": {
+    "background": "#050505",
+    "foreground": "#F8F9FA",
+    "card": "#0A0A0A",
+    "card_border": "#1A1A1A",
+    "primary": "#00E5FF",
+    "primary_glow": "rgba(0, 229, 255, 0.4)",
+    "success": "#00FF66",
+    "success_glow": "rgba(0, 255, 102, 0.4)",
+    "destructive": "#FF003C",
+    "destructive_glow": "rgba(255, 0, 60, 0.4)",
+    "muted": "#1F1F1F",
+    "muted_foreground": "#8B8D98",
+    "accent": "#1A1A1A"
+  },
+  "typography": {
+    "headings": "Cabinet Grotesk",
+    "body": "IBM Plex Sans",
+    "monospace": "JetBrains Mono",
+    "rules": [
+      "Use JetBrains Mono for ALL technical data: IP addresses, Ports, Latency (ms), Connection Strings, and Logs.",
+      "Headings should use Cabinet Grotesk with tight tracking (tracking-tight) for a technical brutalist feel.",
+      "Body text should use IBM Plex Sans for maximum legibility.",
+      "All overlines/labels (e.g., 'ACTIVE PROXY', 'LATENCY') must be JetBrains Mono, uppercase, text-xs, tracking-[0.2em] with a muted foreground."
+    ],
+    "installation_commands": [
+      "No direct npm install for Google fonts required; add to HTML head or use standard import techniques."
+    ]
+  },
+  "visual_enhancers": {
+    "surface_strategy": "Grid Borders (Technical Look) & Subtle Terminal Glow",
+    "borders": "Use 1px solid borders (border-[#1A1A1A]) on cards. Expose the grid skeleton where possible using border-collapse layout.",
+    "glow": "Add drop-shadow-[0_0_12px_var(--primary-glow)] to active connection statuses and primary buttons for that hacker/cyber aesthetic without overdoing it.",
+    "texture": "Apply a subtle CSS radial gradient or scanline noise overlay to the Architecture Flow Visual background.",
+    "shadows": "Replace soft shadows with sharp 1px solid strokes or inner glows."
+  },
+  "grids_and_layouts": {
+    "dashboard_structure": "Sidebar + Main Content Area.",
+    "sidebar": "Narrow, left-aligned, border-r border-[#1A1A1A]. Contains navigation icons and API Key Setup modal trigger.",
+    "main_content": "Dense Bento-style grid with generous padding (p-8).",
+    "bento_grid": [
+      "Top Row: Active Proxy Hero Card (col-span-1 md:col-span-4) + Architecture Flow Visual (col-span-1 md:col-span-8).",
+      "Middle Row: Proxy List Browser & Filters (col-span-1 md:col-span-8) + Proxy Health Test & Fetch/Try It Widget (col-span-1 md:col-span-4).",
+      "Bottom Row: Usage History (col-span-1 md:col-span-12)."
+    ],
+    "spacing": "Use gap-6 between major bento cards, but keep internal card spacing dense (p-4 or p-6) for a data-heavy feel."
+  },
+  "component_instructions": {
+    "proxy_list_browser": {
+      "type": "Data Table",
+      "style": "Dense tabular layout, monospace IPs. Sticky header.",
+      "features": "Include inline Country flags next to ISO codes. Use standard Shadcn Table component."
+    },
+    "filter_controls": {
+      "type": "Toolbar",
+      "style": "Compact select dropdowns and search inputs with a terminal-like caret."
+    },
+    "active_proxy_card": {
+      "type": "Hero Widget",
+      "style": "High-contrast card with an animated 'Active' pulsing dot (bg-cyan-400 animate-pulse). Prominently display connection string.",
+      "instructions": "Use a heavy bottom border (border-b-2 border-primary) to anchor it."
+    },
+    "architecture_flow_visual": {
+      "type": "Diagram",
+      "style": "Interactive or static flow: FloppyData -> Proxy List -> Selected Proxy (Highlighted) -> Your Server -> Your Web.",
+      "instructions": "Use React Flow (if complex) or simple flexbox with SVG connecting arrows. The 'Selected Proxy' node should glow cyan."
+    },
+    "proxy_health_test": {
+      "type": "Interactive Widget",
+      "style": "Terminal-style output window for 'Fetch / Try It'.",
+      "instructions": "Darker background within the card (bg-black) with monospace output. Status badges for Alive (Laser Green) and Dead (Signal Red)."
+    },
+    "status_badges": {
+      "type": "Badge",
+      "style": "Sharp edges (rounded-none or rounded-sm), no background, just 1px border and text colored based on status."
+    }
+  },
+  "motion": {
+    "micro_interactions": "Fast, precise, non-bouncy transitions. Use transition-colors duration-150.",
+    "loading_states": "Use terminal-style loaders (e.g., repeating ASCII dots or block cursors) instead of standard spinners.",
+    "entrance": "Staggered fade-in from the bottom for list items in the Proxy Table."
+  },
+  "accessibility": {
+    "contrast": "Ensure text against dark backgrounds meets APCA standards.",
+    "focus_states": "Sharp cyan outline (focus:ring-2 focus:ring-primary focus:outline-none) on all inputs.",
+    "testing": "All interactive and key informational elements MUST include a data-testid attribute in kebab-case."
+  },
+  "media": {
+    "icons_library": "lucide-react or @phosphor-icons/react (Duotone/Regular)",
+    "image_urls": [],
+    "instructions": "Rely heavily on typography and SVG iconography for technical dashboards. No generic placeholder images."
+  },
+  "instructions_to_main_agent": [
+    "You are building a React frontend using Tailwind CSS and Shadcn UI.",
+    "Ensure dark mode is forced on by setting 'dark' class on HTML or wrapping root.",
+    "Customize tailwind.config.js to include the custom colors (background: #050505, primary: #00E5FF, etc.) and fonts (Cabinet Grotesk, IBM Plex Sans, JetBrains Mono).",
+    "Install lucide-react if not present, and setup Shadcn components (Table, Badge, Card, Input, Select, Button, Dialog).",
+    "For the 'Architecture Flow Visual', you can build a custom SVG/flexbox diagram that looks technical, with glowing paths.",
+    "Do not use generic blue/purple gradients. Stick strictly to the monochrome + neon accent color palette."
+  ],
+  "UNIVERSAL_GUIDELINES_FOR_MAIN_AGENT": [
+    "You MUST NOT apply universal transition (e.g., transition: all).",
+    "You MUST NOT center align the app container in CSS.",
+    "Create depth through layered design elements (1px borders, subtle inner glows), not soft drop shadows.",
+    "Use glass-morphism (backdrop-blur) only on sticky headers or modals.",
+    "Never use placeholder text or emojis for icons.",
+    "Ensure all components have data-testid attributes.",
+    "DO NOT use a completely transparent background in overlays or dropdowns."
+  ]
+}

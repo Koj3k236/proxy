@@ -1,0 +1,79 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    :root {
+        --background: 0 0% 2%;
+        --foreground: 0 0% 97%;
+        --card: 0 0% 4%;
+        --card-foreground: 0 0% 97%;
+        --popover: 0 0% 4%;
+        --popover-foreground: 0 0% 97%;
+        --primary: 187 100% 50%;
+        --primary-foreground: 0 0% 4%;
+        --secondary: 0 0% 10%;
+        --secondary-foreground: 0 0% 97%;
+        --muted: 0 0% 10%;
+        --muted-foreground: 225 6% 57%;
+        --accent: 0 0% 10%;
+        --accent-foreground: 0 0% 97%;
+        --destructive: 348 100% 50%;
+        --destructive-foreground: 0 0% 97%;
+        --border: 0 0% 10%;
+        --input: 0 0% 12%;
+        --ring: 187 100% 50%;
+        --radius: 0.25rem;
+    }
+}
+
+@layer base {
+    * {
+        @apply border-border;
+    }
+    html {
+        color-scheme: dark;
+    }
+    body {
+        margin: 0;
+        @apply bg-background text-foreground font-sans;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        background-image:
+            radial-gradient(circle at 15% 0%, rgba(0, 229, 255, 0.06), transparent 40%),
+            radial-gradient(circle at 85% 100%, rgba(0, 255, 102, 0.04), transparent 45%);
+        background-attachment: fixed;
+    }
+    h1, h2, h3, h4 {
+        @apply font-heading;
+    }
+    ::selection {
+        background: rgba(0, 229, 255, 0.25);
+        color: #fff;
+    }
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: #050505; }
+    ::-webkit-scrollbar-thumb { background: #1f1f1f; border-radius: 0; }
+    ::-webkit-scrollbar-thumb:hover { background: #2a2a2a; }
+}
+
+@layer components {
+    .overline {
+        @apply font-mono uppercase text-[10px] tracking-[0.2em] text-dim;
+    }
+    .grid-lines {
+        background-image:
+            linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+        background-size: 28px 28px;
+    }
+    .neon-glow {
+        box-shadow: 0 0 16px rgba(0, 229, 255, 0.28);
+    }
+    .laser-glow {
+        box-shadow: 0 0 14px rgba(0, 255, 102, 0.3);
+    }
+    .card-panel {
+        @apply bg-panel border border-line;
+    }
+}
