@@ -239,7 +239,7 @@ async def proxy_activate(body: ProxyConnection):
     await db.settings.update_one({"_id": "app"}, {"$set": {"active_proxy": doc}}, upsert=True)
     hist = dict(doc)
     hist["used_at"] = now_iso()
-    await db.history.insert_one({**hist, "_id": doc["id"]})
+    await db.history.insert_one({**hist, "_id": str(uuid.uuid4())})
     return {"ok": True, "active": doc}
 
 
