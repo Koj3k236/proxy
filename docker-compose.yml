@@ -1,0 +1,35 @@
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - mongo_data:/data/db
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      - mongo
+    environment:
+      MONGO_URL: mongodb://mongo:27017
+      DB_NAME: proxy_gateway
+      CORS_ORIGINS: "*"
+      FLOPPYDATA_API_KEY: ${FLOPPYDATA_API_KEY}
+      FLOPPYDATA_BASE_URL: https://api.floppydata.net
+      GATEWAY_PORT: ${GATEWAY_PORT:-8888}
+    ports:
+      - "${GATEWAY_PORT:-8888}:${GATEWAY_PORT:-8888}"
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        REACT_APP_BACKEND_URL: ${PUBLIC_URL}
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "${WEB_PORT:-80}:80"
+
+volumes:
+  mongo_data:

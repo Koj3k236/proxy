@@ -45,6 +45,9 @@ Tugas kuliah (dosen): buat web yang mengambil daftar proxy dari floppydata.com, 
 - UsageGuide tab pertama "Gateway :port" + chip status; ArchitectureFlow & ProxyTools menampilkan port dinamis.
 - Testing agent iteration_3: backend 6/6, frontend semua alur lolos. Pool USA ±380 IP → scan massal 45 state × 20 sedang berjalan.
 
+## Implemented (2026-06-18) — Paket deploy VPS
+- backend/Dockerfile, frontend/Dockerfile (multi-stage node→nginx, nginx.conf proxy /api→backend:8001), docker-compose.yml (mongo+backend+frontend, expose WEB_PORT & GATEWAY_PORT), install.sh (auto-install Docker, tanya key/port/URL, tulis .env, ufw, compose up), DEPLOY-VPS.md (panduan Indonesia). Docker tidak tersedia di container preview — divalidasi via bash -n, yaml, dan `yarn build` produksi dengan REACT_APP_BACKEND_URL override.
+
 ## Backlog (P1/P2)
 - P1: DialogDescription/aria untuk a11y warning Radix.
 - P2: auth pada POST /api/settings (proteksi API key) untuk produksi.
